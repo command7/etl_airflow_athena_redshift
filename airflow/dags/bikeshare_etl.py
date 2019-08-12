@@ -30,7 +30,7 @@ etl_dag = DAG(
 source_data_check = PythonOperator(
     task_id='Current_month_existence_check.task',
     python_callable=check_month_data_availability,
-    provide_context=True
+    provide_context=True,
     dag=etl_dag
 )
 
