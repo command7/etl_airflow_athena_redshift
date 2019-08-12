@@ -1,9 +1,29 @@
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
+from airflow.operators.postgres_operator import PostgresOperator
 from airflow.contrib.hooks.aws_hook import AwsHook
 from airflow.models import Variable
 import datetime, logging
+
+
+create_trips_table_sql = """
+CREATE TABLE IF NOT EXISTS TRIPS (
+    trip_id INTEGER NOT NULL,
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP NOT NULL,
+    bikeid INTEGER NOT NULL,
+    tripduration DECIMAL(16, 2) NOT NULL,
+    from_station_id INTEGER NOT NULL,
+    from_station_name VARCHAR(100) NOT NULL,
+    to_station_id INTEGER NOT NULL,
+    to_station_name VARCHAR(100) NOT NULL,
+    usertype VARCHAR(20) NOT NULL,
+    gender VARCHAR(6) NOT NULL,
+    birthyear SMALLINT NOT NULL,
+    PRIMARY KEY(trip_id))
+    DISTSTYLE ALL;
+"""
 
 
 def check_month_data_availability(*args, **kwargs):
@@ -21,7 +41,6 @@ def check_month_data_availability(*args, **kwargs):
         raise Exception
 
 
-
 def copy_data_to_redshift():
     pass
 
@@ -36,7 +55,7 @@ def check_data_in_redshift():
 
 etl_dag = DAG(
     'Bikeshare_ETL',
-    start_date=datetime.datetime.now() - datetime.timedelta(days=600),
+    start_date=datetime.datetime.now(),
     schedule_interval='@daily'
 )
 
@@ -48,3 +67,12 @@ source_data_check = PythonOperator(
     dag=etl_dag
 )
 
+
+trips_table_creation = PostgresOperator(
+    task_id='Create_trips_table.task',
+    postgres_conn_id='redshift_connection',
+    sql=create_trips_table_sql
+)
+
+
+source_data_check >> trips_table_creation
