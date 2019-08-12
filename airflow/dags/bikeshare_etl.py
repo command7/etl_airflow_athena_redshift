@@ -5,6 +5,7 @@ from airflow.operators.postgres_operator import PostgresOperator
 from airflow.contrib.hooks.aws_hook import AwsHook
 from airflow.models import Variable
 import datetime, logging
+from Bikeshare_ETL_Exceptions import Month_Data_Missing
 
 
 create_trips_table_sql = """
@@ -35,10 +36,13 @@ def check_month_data_availability(*args, **kwargs):
     s3_hook = S3Hook(aws_conn_id='aws_credentials')
     file_exists = s3_hook.check_for_key(key=current_month_object_key,
                                         bucket_name=bucket_name)
-    if file_exists:
-        logging.info(f'File {execution_date.year}/{execution_date.month} exists.')
-    else:
-        raise Exception
+    try:
+        if file_exists:
+            logging.info(f'File {execution_date.year}/{execution_date.month} exists.')
+        else:
+            raise Month_Data_Missing
+    except Month_Data_Missing:
+        logging.ERROR(f"Data for the year - {execution_date.year}, month - {execution_date.month} is missing")
 
 
 def copy_data_to_redshift():
