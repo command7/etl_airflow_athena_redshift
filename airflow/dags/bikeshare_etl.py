@@ -5,7 +5,7 @@ from airflow.contrib.hooks.aws_hook import AwsHook
 import datetime, logging
 
 
-def check_month_data_availability():
+def check_month_data_availability(*args, **kwargs):
     pass
 
 
@@ -23,13 +23,14 @@ def check_data_in_redshift():
 
 etl_dag = DAG(
     'Bikeshare_ETL',
-    owner='Vijay',
-    start_data = datetime.datetime.now()
+    start_date=datetime.datetime.now()
 )
 
 
-# source_data_check = PythonOperator(
-#     task_id='Current_month_existence_check.task',
-#
-# )
+source_data_check = PythonOperator(
+    task_id='Current_month_existence_check.task',
+    python_callable=check_month_data_availability,
+    provide_context=True
+    dag=etl_dag
+)
 
