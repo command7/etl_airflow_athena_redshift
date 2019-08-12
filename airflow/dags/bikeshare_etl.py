@@ -6,7 +6,10 @@ import datetime, logging
 
 
 def check_month_data_availability(*args, **kwargs):
-    pass
+    execution_date = kwargs['ds']
+    date_time_format = datetime.datetime.strptime(execution_date, '%Y-%m-%d')
+    logging.info(f'Type is {type(date_time_format)}')
+    logging.info(f"Execution date : {date_time_format}")
 
 
 def copy_data_to_redshift():
@@ -23,7 +26,7 @@ def check_data_in_redshift():
 
 etl_dag = DAG(
     'Bikeshare_ETL',
-    start_date=datetime.datetime.now()
+    start_date=datetime.datetime.now(),
 )
 
 
