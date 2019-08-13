@@ -92,7 +92,7 @@ def update_athena_partition(*args, **kwargs):
     location "{}";
     """
     athena_hook = AWSAthenaHook(aws_conn_id='aws_credentials')
-    athena_hook.run_query(partition_update_query.format(athena_hook,
+    athena_hook.run_query(partition_update_query.format(athena_table_name,
                                                         execution_year,
                                                         execution_month,
                                                         file_location),
