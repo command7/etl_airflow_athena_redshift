@@ -101,8 +101,18 @@ def update_athena_partition(*args, **kwargs):
                           client_request_token=str(uuid4()))
 
 
-def check_data_in_redshift():
-    pass
+def check_data_in_redshift(*args, **kwargs):
+    execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
+    execution_month = execution_date.month
+    execution_year = execution_date.year
+    num_records_query = f"""
+    SELECT COUNT(*) FROM trips
+    WHERE year = {execution_year} AND month = {execution_month}
+    """
+    athena_hook = AWSAthenaHook(aws_conn_id='aws_credentials')
+    query_results = athena_hook.get_records(sql=num_records_query)
+    for key, value in query_results.items():
+        logging.info(f"{key} - {value}")
 
 
 etl_dag = DAG(
@@ -141,6 +151,8 @@ etl_dag = DAG(
 #     dag=etl_dag,
 #     provide_context=True
 # )
+
+
 
 
 # source_data_check >> trips_table_creation
