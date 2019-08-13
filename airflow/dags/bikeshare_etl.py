@@ -2,10 +2,12 @@ from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.contrib.hooks.aws_hook import AwsHook
+from airflow.contrib.hooks.aws_athena_hook import AWSAthenaHook
 from airflow.operators.postgres_operator import PostgresOperator
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.models import Variable
 import datetime, logging
+from boto3 import Session
 
 
 class ETL_Exception(Exception):
@@ -75,8 +77,22 @@ def copy_data_to_redshift(*args, **kwargs):
     redshift_hook = PostgresHook('redshift_connection')
     redshift_hook.run(copy_all_trips_sql.format(table_name, s3_file_location, access_key, secret_key))
 
-def update_athena_partition():
-    pass
+def update_athena_partition(*args, **kwargs):
+    execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
+    execution_month = execution_date.month
+    execution_year = execution_date.year
+    s3_address = Variable.get('bikeshare_s3_address')
+    athena_table_name = Variable.get('bikeshare_athena_table')
+    file_location = 's3://bikeshare-data-copy/' + s3_address + f'year={execution_year}/month={execution_month}/'
+    partition_update_query = """
+    ALTER TABLE {} add partition (year="{}", month='{}')
+    location "{}";
+    """
+    athena_hook = AWSAthenaHook(aws_conn_id='aws_credentials')
+    athena_hook.run_query(partition_update_query.format(athena_hook,
+                                                        execution_year,
+                                                        execution_month,
+                                                        file_location))
 
 
 def check_data_in_redshift():
