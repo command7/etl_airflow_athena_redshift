@@ -83,6 +83,7 @@ def copy_data_to_redshift(*args, **kwargs):
     redshift_hook = PostgresHook('redshift_connection')
     redshift_hook.run(copy_all_trips_sql.format(table_name, s3_file_location, access_key, secret_key))
 
+
 def update_athena_partition(*args, **kwargs):
     execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
     execution_month = execution_date.month
@@ -130,11 +131,12 @@ def check_data_in_redshift(*args, **kwargs):
     redshift_hook = PostgresHook('redshift_connection')
     redshift_query_results = redshift_hook.get_records(sql=num_records_redshift_query)
     num_records_in_redshift = int(redshift_query_results[0][0])
+    logging.info(f"Number of records in S3 - {num_records_in_s3}")
+    logging.info(f"Number of records in Redshift - {num_records_in_redshift}")
     if num_records_in_s3 == num_records_in_redshift:
         logging.info(f"Successfully Copied data for the year - {execution_year}, month - {execution_month}")
     else:
         raise Partial_Data_Missing
-
 
 
 etl_dag = DAG(
@@ -143,36 +145,36 @@ etl_dag = DAG(
     schedule_interval='@monthly'
 )
 
-#
-# source_data_check = PythonOperator(
-#     task_id='Current_month_existence_check.task',
-#     python_callable=check_month_data_availability,
-#     provide_context=True,
-#     dag=etl_dag
-# )
-#
-#
-# trips_table_creation = PostgresOperator(
-#     task_id='Create_trips_table.task',
-#     postgres_conn_id='redshift_connection',
-#     sql=create_trips_table_sql
-# )
-#
-#
-# copy_trips_data = PythonOperator(
-#     task_id="Copy_data_to_redshift.task",
-#     python_callable=copy_data_to_redshift,
-#     provide_context=True,
-#     dag=etl_dag
-# )
-#
-#
-# update_athena_meta_store = PythonOperator(
-#     task_id="Update_Athena_Metastore.task",
-#     python_callable=update_athena_partition,
-#     dag=etl_dag,
-#     provide_context=True
-# )
+
+source_data_check = PythonOperator(
+    task_id='Current_month_existence_check.task',
+    python_callable=check_month_data_availability,
+    provide_context=True,
+    dag=etl_dag
+)
+
+
+trips_table_creation = PostgresOperator(
+    task_id='Create_trips_table.task',
+    postgres_conn_id='redshift_connection',
+    sql=create_trips_table_sql
+)
+
+
+copy_trips_data = PythonOperator(
+    task_id="Copy_data_to_redshift.task",
+    python_callable=copy_data_to_redshift,
+    provide_context=True,
+    dag=etl_dag
+)
+
+
+update_athena_meta_store = PythonOperator(
+    task_id="Update_Athena_Metastore.task",
+    python_callable=update_athena_partition,
+    dag=etl_dag,
+    provide_context=True
+)
 
 validate_etl = PythonOperator(
     task_id="Validate_ETL_data.task",
@@ -182,6 +184,8 @@ validate_etl = PythonOperator(
 )
 
 
-# source_data_check >> trips_table_creation
-# trips_table_creation >> copy_trips_data
-# copy_trips_data >> update_athena_meta_store
+source_data_check >> trips_table_creation
+trips_table_creation >> copy_trips_data
+copy_trips_data >> update_athena_meta_store
+update_athena_meta_store >> validate_etl
+
