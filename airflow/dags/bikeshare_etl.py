@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
+from airflow.contrib.hooks.aws_hook import AwsHook
 from airflow.operators.postgres_operator import PostgresOperator
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.models import Variable
@@ -104,4 +105,12 @@ trips_table_creation = PostgresOperator(
 )
 
 
+copy_trips_data = PythonOperator(
+    task_id="Copy_data_to_redshift.task",
+    python_callable=copy_data_to_redshift,
+    dag=etl_dag
+)
+
+
 source_data_check >> trips_table_creation
+trips_table_creation >> copy_trips_data
