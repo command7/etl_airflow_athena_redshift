@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.postgres_operator import PostgresOperator
+from airflow.hooks.postgres_hook import PostgresHook
 from airflow.models import Variable
 import datetime, logging
 
@@ -35,6 +36,16 @@ CREATE TABLE IF NOT EXISTS TRIPS (
 """
 
 
+copy_all_trips_sql = """
+COPY {}
+FROM '{}'
+ACCESS_KEY_ID '{}'
+SECRET_ACCESS_KEY '{}'
+IGNOREHEADER 1
+DELIMITER ','
+"""
+
+
 def check_month_data_availability(*args, **kwargs):
     execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
     bucket_name = Variable.get('bikeshare_bucket_name')
@@ -52,8 +63,16 @@ def check_month_data_availability(*args, **kwargs):
 
 
 def copy_data_to_redshift():
-    pass
-
+    aws_hook = AwsHook(aws_conn_id='aws_credentials')
+    s3_address = Variable.get('bikeshare_s3_address')
+    credentials = aws_hook.get_credentials()
+    access_key = credentials.access_key
+    secret_key = credentials.secret_key
+    table_name = 'trips'
+    # s3_file_location = 's3://bikeshare-data-copy/unprocessed_data/divvy/unpartitioned/divvy_trips_2018.csv'
+    s3_file_location = 's3://bikeshare-data-copy/' + s3_address + f'year={execution_date.year}/month={execution_date.month}/divvy_trips.csv'
+    redshift_hook = PostgresHook('redshift_connection')
+    redshift_hook.run(copy_all_trips_sql.format(table_name, s3_file_location, access_key, secret_key))
 
 def update_athena_partition():
     pass
