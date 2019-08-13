@@ -111,38 +111,38 @@ etl_dag = DAG(
     schedule_interval='@monthly'
 )
 
+#
+# source_data_check = PythonOperator(
+#     task_id='Current_month_existence_check.task',
+#     python_callable=check_month_data_availability,
+#     provide_context=True,
+#     dag=etl_dag
+# )
+#
+#
+# trips_table_creation = PostgresOperator(
+#     task_id='Create_trips_table.task',
+#     postgres_conn_id='redshift_connection',
+#     sql=create_trips_table_sql
+# )
+#
+#
+# copy_trips_data = PythonOperator(
+#     task_id="Copy_data_to_redshift.task",
+#     python_callable=copy_data_to_redshift,
+#     provide_context=True,
+#     dag=etl_dag
+# )
+#
+#
+# update_athena_meta_store = PythonOperator(
+#     task_id="Update_Athena_Metastore.task",
+#     python_callable=update_athena_partition,
+#     dag=etl_dag,
+#     provide_context=True
+# )
 
-source_data_check = PythonOperator(
-    task_id='Current_month_existence_check.task',
-    python_callable=check_month_data_availability,
-    provide_context=True,
-    dag=etl_dag
-)
 
-
-trips_table_creation = PostgresOperator(
-    task_id='Create_trips_table.task',
-    postgres_conn_id='redshift_connection',
-    sql=create_trips_table_sql
-)
-
-
-copy_trips_data = PythonOperator(
-    task_id="Copy_data_to_redshift.task",
-    python_callable=copy_data_to_redshift,
-    provide_context=True,
-    dag=etl_dag
-)
-
-
-update_athena_meta_store = PythonOperator(
-    task_id="Update_Athena_Metastore.task",
-    python_callable=update_athena_partition,
-    dag=etl_dag,
-    provide_context=True
-)
-
-
-source_data_check >> trips_table_creation
-trips_table_creation >> copy_trips_data
-copy_trips_data >> update_athena_meta_store
+# source_data_check >> trips_table_creation
+# trips_table_creation >> copy_trips_data
+# copy_trips_data >> update_athena_meta_store
