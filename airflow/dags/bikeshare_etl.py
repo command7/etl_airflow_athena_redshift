@@ -21,6 +21,11 @@ class Month_Data_Missing(ETL_Exception):
     pass
 
 
+class Partial_Data_Missing(ETL_Exception):
+    """Raised when there are missing records"""
+    pass
+
+
 create_trips_table_sql = """
 CREATE TABLE IF NOT EXISTS TRIPS (
     trip_id INTEGER NOT NULL,
@@ -114,19 +119,21 @@ def check_data_in_redshift(*args, **kwargs):
     SELECT COUNT(*) FROM trips
     WHERE date_part(year, trips.start_time) = {execution_year} AND date_part(month, trips.start_time) = {execution_month}
     """
-    # athena_hook = AWSAthenaHook(aws_conn_id='aws_credentials')
-    # query_id = athena_hook.run_query(query=num_records_athena_query,
-    #                                  query_context={"Database": "bikeshare_data"},
-    #                                  result_configuration={"OutputLocation": "s3://{}/".format(bucket_name)},
-    #                                  client_request_token=str(uuid4()))
-    # time.sleep(20)
-    # athena_query_results = athena_hook.get_query_results(query_execution_id=query_id)
+    athena_hook = AWSAthenaHook(aws_conn_id='aws_credentials')
+    query_id = athena_hook.run_query(query=num_records_athena_query,
+                                     query_context={"Database": "bikeshare_data"},
+                                     result_configuration={"OutputLocation": "s3://{}/".format(bucket_name)},
+                                     client_request_token=str(uuid4()))
+    time.sleep(20)
+    athena_query_results = athena_hook.get_query_results(query_execution_id=query_id)
     num_records_in_s3 = int(athena_query_results['ResultSet']['Rows'][1]['Data'][0]['VarCharValue'])
     redshift_hook = PostgresHook('redshift_connection')
     redshift_query_results = redshift_hook.get_records(sql=num_records_redshift_query)
-    for key, value in redshift_query_results:
-        logging.info(f"{key} - {value}")
-
+    num_records_in_redshift = int(redshift_query_results[0][0])
+    if num_records_in_s3 == num_records_in_redshift:
+        logging.info(f"Successfully Copied data for the year - {execution_year}, month - {execution_month}")
+    else:
+        raise Partial_Data_Missing
 
 
 
