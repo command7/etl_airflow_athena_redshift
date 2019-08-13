@@ -63,14 +63,14 @@ def check_month_data_availability(*args, **kwargs):
         raise Month_Data_Missing
 
 
-def copy_data_to_redshift():
+def copy_data_to_redshift(*args, **kwargs):
+    execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
     aws_hook = AwsHook(aws_conn_id='aws_credentials')
     s3_address = Variable.get('bikeshare_s3_address')
     credentials = aws_hook.get_credentials()
     access_key = credentials.access_key
     secret_key = credentials.secret_key
     table_name = 'trips'
-    # s3_file_location = 's3://bikeshare-data-copy/unprocessed_data/divvy/unpartitioned/divvy_trips_2018.csv'
     s3_file_location = 's3://bikeshare-data-copy/' + s3_address + f'year={execution_date.year}/month={execution_date.month}/divvy_trips.csv'
     redshift_hook = PostgresHook('redshift_connection')
     redshift_hook.run(copy_all_trips_sql.format(table_name, s3_file_location, access_key, secret_key))
@@ -108,6 +108,7 @@ trips_table_creation = PostgresOperator(
 copy_trips_data = PythonOperator(
     task_id="Copy_data_to_redshift.task",
     python_callable=copy_data_to_redshift,
+    provide_context=True,
     dag=etl_dag
 )
 
