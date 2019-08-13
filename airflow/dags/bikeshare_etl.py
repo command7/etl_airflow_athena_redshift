@@ -7,6 +7,7 @@ from airflow.operators.postgres_operator import PostgresOperator
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.models import Variable
 import datetime, logging
+from uuid import uuid4
 from boto3 import Session
 
 
@@ -82,8 +83,10 @@ def update_athena_partition(*args, **kwargs):
     execution_month = execution_date.month
     execution_year = execution_date.year
     s3_prefix = Variable.get('bikeshare_s3_prefix')
+    bucket_name = Variable.get('bikeshare_bucket_name')
     athena_table_name = Variable.get('bikeshare_athena_table')
     file_location = 's3://bikeshare-data-copy/' + s3_prefix + f'year={execution_year}/month={execution_month}/'
+    result_configuration = {"OutputLocation": "s3://{}/".format(bucket_name)}
     partition_update_query = """
     ALTER TABLE {} add partition (year="{}", month='{}')
     location "{}";
@@ -92,7 +95,10 @@ def update_athena_partition(*args, **kwargs):
     athena_hook.run_query(partition_update_query.format(athena_hook,
                                                         execution_year,
                                                         execution_month,
-                                                        file_location))
+                                                        file_location),
+                          result_configuration=result_configuration,
+                          query_context={"Database": "bikeshare_data"},
+                          client_request_token=str(uuid4()))
 
 
 def check_data_in_redshift():
@@ -102,6 +108,7 @@ def check_data_in_redshift():
 etl_dag = DAG(
     'Bikeshare_ETL',
     start_date=datetime.datetime.now() - datetime.timedelta(days=500),
+    schedule_interval='@yearly'
 )
 
 
@@ -128,5 +135,13 @@ copy_trips_data = PythonOperator(
 )
 
 
+update_athena_meta_store = PythonOperator(
+    task_id="Update_Athena_Metastore.task",
+    python_callable=update_athena_partition,
+    dag=etl_dag
+)
+
+
 source_data_check >> trips_table_creation
 trips_table_creation >> copy_trips_data
+copy_trips_data >> update_athena_meta_store
