@@ -89,10 +89,11 @@ def update_athena_partition(*args, **kwargs):
     execution_month = execution_date.month
     execution_year = execution_date.year
     s3_prefix = Variable.get('bikeshare_s3_prefix')
+    logs_location = Variable.get('bikeshare_athena_logs')
     bucket_name = Variable.get('bikeshare_bucket_name')
     athena_table_name = Variable.get('bikeshare_athena_table')
     file_location = 's3://bikeshare-data-copy/' + s3_prefix + f'year={execution_year}/month={execution_month}/'
-    result_configuration = {"OutputLocation": "s3://{}/".format(bucket_name)}
+    result_configuration = {"OutputLocation": logs_location}
     partition_update_query = """
     ALTER TABLE {} add partition (year="{}", month='{}')
     location "{}";
@@ -112,6 +113,7 @@ def check_data_in_redshift(*args, **kwargs):
     execution_month = execution_date.month
     execution_year = execution_date.year
     bucket_name = Variable.get("bikeshare_bucket_name")
+    logs_location = Variable.get("bikeshare_athena_logs")
     num_records_athena_query = f"""
     SELECT COUNT(*) FROM trips
     WHERE year = {execution_year} AND month = {execution_month}
@@ -123,7 +125,7 @@ def check_data_in_redshift(*args, **kwargs):
     athena_hook = AWSAthenaHook(aws_conn_id='aws_credentials')
     query_id = athena_hook.run_query(query=num_records_athena_query,
                                      query_context={"Database": "bikeshare_data"},
-                                     result_configuration={"OutputLocation": "s3://{}/".format(bucket_name)},
+                                     result_configuration={"OutputLocation": logs_location},
                                      client_request_token=str(uuid4()))
     time.sleep(20)
     athena_query_results = athena_hook.get_query_results(query_execution_id=query_id)
