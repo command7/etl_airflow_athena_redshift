@@ -107,8 +107,8 @@ def check_data_in_redshift():
 
 etl_dag = DAG(
     'Bikeshare_ETL',
-    start_date=datetime.datetime.now() - datetime.timedelta(days=500),
-    schedule_interval='@yearly'
+    start_date=datetime.datetime.strptime('2018-01-01', '%Y-%m-%d'),
+    schedule_interval='@monthly'
 )
 
 
@@ -138,7 +138,8 @@ copy_trips_data = PythonOperator(
 update_athena_meta_store = PythonOperator(
     task_id="Update_Athena_Metastore.task",
     python_callable=update_athena_partition,
-    dag=etl_dag
+    dag=etl_dag,
+    provide_context=True
 )
 
 
