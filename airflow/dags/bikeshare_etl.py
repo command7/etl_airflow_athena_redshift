@@ -52,9 +52,9 @@ DELIMITER ','
 def check_month_data_availability(*args, **kwargs):
     execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
     bucket_name = Variable.get('bikeshare_bucket_name')
-    s3_address = Variable.get('bikeshare_s3_address')
-    current_month_object_key = s3_address + f'year={execution_date.year}/month={execution_date.month}/divvy_trips.csv'
-    # current_month_object_key = s3_address + f'year=2018/month=2/divvy_trips.csv'
+    s3_prefix = Variable.get('bikeshare_s3_prefix')
+    current_month_object_key = s3_prefix + f'year={execution_date.year}/month={execution_date.month}/divvy_trips.csv'
+    # current_month_object_key = s3_prefix + f'year=2018/month=2/divvy_trips.csv'
     s3_hook = S3Hook(aws_conn_id='aws_credentials')
     file_exists = s3_hook.check_for_key(key=current_month_object_key,
                                         bucket_name=bucket_name)
@@ -68,12 +68,12 @@ def check_month_data_availability(*args, **kwargs):
 def copy_data_to_redshift(*args, **kwargs):
     execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
     aws_hook = AwsHook(aws_conn_id='aws_credentials')
-    s3_address = Variable.get('bikeshare_s3_address')
+    s3_prefix = Variable.get('bikeshare_s3_prefix')
     credentials = aws_hook.get_credentials()
     access_key = credentials.access_key
     secret_key = credentials.secret_key
     table_name = 'trips'
-    s3_file_location = 's3://bikeshare-data-copy/' + s3_address + f'year={execution_date.year}/month={execution_date.month}/divvy_trips.csv'
+    s3_file_location = 's3://bikeshare-data-copy/' + s3_prefix + f'year={execution_date.year}/month={execution_date.month}/divvy_trips.csv'
     redshift_hook = PostgresHook('redshift_connection')
     redshift_hook.run(copy_all_trips_sql.format(table_name, s3_file_location, access_key, secret_key))
 
@@ -81,9 +81,9 @@ def update_athena_partition(*args, **kwargs):
     execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
     execution_month = execution_date.month
     execution_year = execution_date.year
-    s3_address = Variable.get('bikeshare_s3_address')
+    s3_prefix = Variable.get('bikeshare_s3_prefix')
     athena_table_name = Variable.get('bikeshare_athena_table')
-    file_location = 's3://bikeshare-data-copy/' + s3_address + f'year={execution_year}/month={execution_month}/'
+    file_location = 's3://bikeshare-data-copy/' + s3_prefix + f'year={execution_year}/month={execution_month}/'
     partition_update_query = """
     ALTER TABLE {} add partition (year="{}", month='{}')
     location "{}";
@@ -101,8 +101,7 @@ def check_data_in_redshift():
 
 etl_dag = DAG(
     'Bikeshare_ETL',
-    start_date=datetime.datetime.now(),
-    schedule_interval='@daily'
+    start_date=datetime.datetime.now() - datetime.timedelta(days=500),
 )
 
 
