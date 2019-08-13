@@ -8,7 +8,7 @@ from airflow.hooks.postgres_hook import PostgresHook
 from airflow.models import Variable
 import datetime, logging
 from uuid import uuid4
-from boto3 import Session
+import time
 
 
 class ETL_Exception(Exception):
@@ -105,14 +105,29 @@ def check_data_in_redshift(*args, **kwargs):
     execution_date = datetime.datetime.strptime(kwargs['ds'], '%Y-%m-%d')
     execution_month = execution_date.month
     execution_year = execution_date.year
-    num_records_query = f"""
+    bucket_name = Variable.get("bikeshare_bucket_name")
+    num_records_athena_query = f"""
     SELECT COUNT(*) FROM trips
     WHERE year = {execution_year} AND month = {execution_month}
     """
-    athena_hook = AWSAthenaHook(aws_conn_id='aws_credentials')
-    query_results = athena_hook.get_records(sql=num_records_query)
-    for key, value in query_results.items():
+    num_records_redshift_query = f"""
+    SELECT COUNT(*) FROM trips
+    WHERE date_part(year, trips.start_time) = {execution_year} AND date_part(month, trips.start_time) = {execution_month}
+    """
+    # athena_hook = AWSAthenaHook(aws_conn_id='aws_credentials')
+    # query_id = athena_hook.run_query(query=num_records_athena_query,
+    #                                  query_context={"Database": "bikeshare_data"},
+    #                                  result_configuration={"OutputLocation": "s3://{}/".format(bucket_name)},
+    #                                  client_request_token=str(uuid4()))
+    # time.sleep(20)
+    # athena_query_results = athena_hook.get_query_results(query_execution_id=query_id)
+    num_records_in_s3 = int(athena_query_results['ResultSet']['Rows'][1]['Data'][0]['VarCharValue'])
+    redshift_hook = PostgresHook('redshift_connection')
+    redshift_query_results = redshift_hook.get_records(sql=num_records_redshift_query)
+    for key, value in redshift_query_results:
         logging.info(f"{key} - {value}")
+
+
 
 
 etl_dag = DAG(
@@ -152,7 +167,12 @@ etl_dag = DAG(
 #     provide_context=True
 # )
 
-
+validate_etl = PythonOperator(
+    task_id="Validate_ETL_data.task",
+    python_callable=check_data_in_redshift,
+    provide_context=True,
+    dag=etl_dag
+)
 
 
 # source_data_check >> trips_table_creation
